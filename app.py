@@ -66,36 +66,8 @@ def monthly_net(ledger: pd.DataFrame, periods: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def main() -> None:
-
-    data = load_data(WORKBOOK)
-    ledger = data["ledger_entries"]
-    periods = data["periods"]
-    house_summary = data["monthly_house_summary"]
-
-    monthly = monthly_net(ledger, periods)
-
-    st.title("Apollo Finance Dashboard")
-    st.caption(f"Source: `{WORKBOOK}` · {len(ledger):,} ledger entries")
-
-    # ---- Sidebar filters ----
-    with st.sidebar:
-        st.header("Filters")
-        all_years = sorted(int(y) for y in monthly["fiscal_year"].dropna().unique())
-        years = st.multiselect(
-            "Fiscal year",
-            options=all_years,
-            default=all_years,
-            help="Apollo's fiscal year runs Sept–Aug; FY2022 = Sept 2021 → Aug 2022.",
-        )
-
-    if not years:
-        st.info("Select at least one fiscal year in the sidebar.")
-        st.stop()
-
-    view = monthly.loc[monthly["fiscal_year"].isin(years)].copy()
-
-    # ---- KPIs ----
+def render_kpis(view: pd.DataFrame) -> None:
+    """Top-of-page metric tiles summarizing the filtered view."""
     total_income = view["income"].sum()
     total_expense = view["expense"].sum()
     total_net = view["net"].sum()
@@ -113,9 +85,9 @@ def main() -> None:
     )
     k4.metric("Months in view", f"{len(view)}")
 
-    st.divider()
 
-    # ---- Chart #1: Monthly surplus/deficit ----
+def render_monthly_surplus_deficit(view: pd.DataFrame) -> None:
+    """Bar chart: one bar per month, green above zero / red below."""
     st.subheader("Monthly surplus / deficit")
     st.caption(
         "Each bar is one month. Green bars rise above zero (income > expenses); "
@@ -128,9 +100,9 @@ def main() -> None:
     )
     st.bar_chart(chart_df, color=["#2e7d32", "#c62828"], height=420)
 
-    st.divider()
 
-    # ---- Chart #2: Cumulative net position ----
+def render_cumulative_net(view: pd.DataFrame) -> None:
+    """Line chart: running total of monthly net over time."""
     st.subheader("Cumulative net position over time")
     ending = view.sort_values("year_month")["cumulative_net"].iloc[-1]
     starting = view.sort_values("year_month")["cumulative_net"].iloc[0] - view.sort_values("year_month")["net"].iloc[0]
@@ -148,9 +120,9 @@ def main() -> None:
     )
     st.line_chart(cum_df, color="#1565c0", height=360)
 
-    st.divider()
 
-    # ---- Chart #3: Bank-account balances over time ----
+def render_account_balances(house_summary: pd.DataFrame, years: list[int]) -> None:
+    """Line chart: end-of-month balance for every Apollo bank account."""
     st.subheader("Bank-account balances over time")
     bal_view = (
         house_summary.loc[house_summary["fiscal_year"].isin(years)]
@@ -190,6 +162,9 @@ def main() -> None:
         height=380,
     )
 
+
+def render_monthly_table(view: pd.DataFrame) -> None:
+    """Collapsible table with the per-month numbers behind the charts."""
     with st.expander("Show monthly numbers"):
         table = view[
             ["year_month", "fiscal_year", "semester", "month_name", "income", "expense", "net", "cumulative_net"]
@@ -199,12 +174,59 @@ def main() -> None:
             hide_index=True,
             use_container_width=True,
             column_config={
-                "income": st.column_config.NumberColumn(format="$%.2f"),
-                "expense": st.column_config.NumberColumn(format="$%.2f"),
-                "net": st.column_config.NumberColumn(format="$%.2f"),
-                "cumulative_net": st.column_config.NumberColumn(format="$%.2f"),
+                "year_month": st.column_config.TextColumn(label="Month (YYYY-MM)"),
+                "fiscal_year": st.column_config.NumberColumn(label="Fiscal year", format="%d"),
+                "semester": st.column_config.TextColumn(label="Semester"),
+                "month_name": st.column_config.TextColumn(label="Month name"),
+                "income": st.column_config.NumberColumn(label="Income", format="$%.2f"),
+                "expense": st.column_config.NumberColumn(label="Expenses", format="$%.2f"),
+                "net": st.column_config.NumberColumn(
+                    label="Net (income − expenses)", format="$%.2f"
+                ),
+                "cumulative_net": st.column_config.NumberColumn(
+                    label="Cumulative net (running total)", format="$%.2f"
+                ),
             },
         )
+
+
+def main() -> None:
+
+    data = load_data(WORKBOOK)
+    ledger = data["ledger_entries"]
+    periods = data["periods"]
+    house_summary = data["monthly_house_summary"]
+
+    monthly = monthly_net(ledger, periods)
+
+    st.title("Apollo Finance Dashboard")
+    st.caption(f"Source: `{WORKBOOK}` · {len(ledger):,} ledger entries")
+
+    # ---- Sidebar filters ----
+    with st.sidebar:
+        st.header("Filters")
+        all_years = sorted(int(y) for y in monthly["fiscal_year"].dropna().unique())
+        years = st.multiselect(
+            "Fiscal year",
+            options=all_years,
+            default=all_years,
+            help="Apollo's fiscal year runs Sept–Aug; FY2022 = Sept 2021 → Aug 2022.",
+        )
+
+    if not years:
+        st.info("Select at least one fiscal year in the sidebar.")
+        st.stop()
+
+    view = monthly.loc[monthly["fiscal_year"].isin(years)].copy()
+
+    render_kpis(view)
+    st.divider()
+    render_monthly_surplus_deficit(view)
+    st.divider()
+    render_cumulative_net(view)
+    st.divider()
+    render_account_balances(house_summary, years)
+    render_monthly_table(view)
 
 
 if __name__ == "__main__":
