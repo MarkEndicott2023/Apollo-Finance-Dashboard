@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-WORKBOOK = Path(__file__).resolve().parent.parent / "artifacts" / "budget_recon_centralized.xlsx"
+WORKBOOK = "budget_recon_centralized.xlsx"
 
 st.set_page_config(
     page_title="Apollo Finance Dashboard",
@@ -67,9 +67,6 @@ def monthly_net(ledger: pd.DataFrame, periods: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    if not WORKBOOK.exists():
-        st.error(f"Workbook not found: {WORKBOOK}")
-        st.stop()
 
     data = load_data(WORKBOOK)
     ledger = data["ledger_entries"]
@@ -79,7 +76,7 @@ def main() -> None:
     monthly = monthly_net(ledger, periods)
 
     st.title("Apollo Finance Dashboard")
-    st.caption(f"Source: `{WORKBOOK.name}` · {len(ledger):,} ledger entries")
+    st.caption(f"Source: `{WORKBOOK}` · {len(ledger):,} ledger entries")
 
     # ---- Sidebar filters ----
     with st.sidebar:
